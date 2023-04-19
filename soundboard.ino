@@ -16,25 +16,31 @@
 //                     PB7 o teensy2++ o PB6          
 //                     PD0 o           o PB5             (interior)
 //                     PD1 o           o PB4          
-//                     PD2 o           o PB3          
-//                     PD3 o    oo     o PB2             o PE5
-//                     PD4 o           o PB1             o PE4
-//                     PD5 o           o PB0          
+//                     PD2 o           o PB3   Mom    
+//     Serial TX 1kR   PD3 o    oo     o PB2   Mom       o PE5
+//     Serial RX       PD4 o           o PB1   Mom       o PE4
+//                     PD5 o           o PB0   Mom    
 //                     PD6 o           o PE7           
 //                     PD7 o           o PE6
 //                     PE0 o           o GND
 //                     PE1 o           o AREF
-//                     PC0 o           o PF0         
-//                     PC1 o     o o   o PF1            o PA4 o PA0  LEDON
-//                     PC2 o     o o   o PF2            o PA5 o PA1  LEDRUN
-//                     PC3 o     o o   o PF3            o PA6 o PA2
-//                     PC4 o  o  o o   o PF4            o PA7 o PA3  DFPSTATUS
-//                     PC5 o           o PF5            
-//                     PC6 o           o PF6             o ALE
-//                     PC7 o---o-o-o---o PF7
+//             Lat     PC0 o           o PF0   Lat   
+//             Lat     PC1 o     o o   o PF1   Lat    Mom o PA4 o PA0  LEDON
+//             Lat     PC2 o     o o   o PF2          Mom o PA5 o PA1  LEDRUN
+//             Lat     PC3 o     o o   o PF3          Mom o PA6 o PA2
+//             Mom     PC4 o  o  o o   o PF4   Mom    Mom o PA7 o PA3  DKmini STATUS
+//             Mom     PC5 o           o PF5   Mom      
+//             Mom     PC6 o           o PF6   Mom       o ALE
+//             Mom     PC7 o---o-o-o---o PF7   Mom
 //                             V G R
 //                             C N S
 //                             C D T
+//
+//
+//  Mom - momentary button 
+//  Lat - Latched button  
+//  All buttons have pull up resistors enabled (so they are wired to ground).
+//  ALL DKplayer GND PINS MUST BE GROUNDED!
 //
 
 
