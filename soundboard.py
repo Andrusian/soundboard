@@ -48,6 +48,9 @@ bootdir2="2"
 #
 # Buttons are grounded when closed.
 #
+# Note: both run and clear buttons are now momentary with
+# long debounce times.
+#
 #----------------------
 # Default locations for stuff...
 
@@ -62,7 +65,7 @@ volume_control="/usr/bin/amixer"
 devnull=open(os.devnull,'w') 
 running=False   
 
-#--------------------
+#-----------------------------------------------------
 # stop functionality
 
 def stopAll():
@@ -88,6 +91,8 @@ def playfile (filenum):
     soundproc=subprocess.Popen([player,filename],shell=False,stdout=devnull,stderr=devnull)
     soundprocStat=True
 
+
+#---class for the play queue ---------------------
 
 class Play:
     def __init__(self):
@@ -118,9 +123,9 @@ class Play:
                     time.sleep(.15)
             statusLEDon()
             runLEDon()
+            return True
             
         except IndexError:
-            running=False
             for x in range(3):   # flash both lights 3 times
                 statusLEDoff()
                 runLEDoff()
@@ -130,6 +135,10 @@ class Play:
                 time.sleep(.15)
             statusLEDoff()
             runLEDoff()
+            print ("queue empty\n");
+            running=False
+            return False
+
 
 playqueue=Play()
 
@@ -137,27 +146,24 @@ soundproc=subprocess.Popen([volume_control,"cset","numid=1","94%"],stdout=devnul
 soundprocStat=False
 boost=False
 
-#--------------------
+#---------------------------------------------------------------
 # stop/run button callback
 
 def stopRunCB(button):
-    value=button.value
-
     global running
 
-    if (value==0):
+    if (running==True):
        # print ("Stop!\n")
        stopAll()
        running=False
        runLEDoff()
     else:
        # print ("Run!\n")
-        if(playqueue.number()==0):
-            running=False
-        else:
-            running=True
-            playqueue.playnext()
+       running=True
+       running=playqueue.playnext()
         
+#---------------------------------------------------------------
+
 def doQueueLight():
     if (playqueue.number()>0):
         GPIO.output(ORANGE,1);
@@ -165,7 +171,7 @@ def doQueueLight():
         GPIO.output(ORANGE,0);
 
 
-# add queue callback----------------------------------------
+# track button callback----------------------------------------
 #
 # unfortunately, gpiozero doesn't allow data to
 # be passed into the callback, so we have to map
@@ -193,8 +199,19 @@ def addqueue(button):
     # print ("pin %d additional %d \n" % (pin,additional))
         
     if (pin==22):
-        r=random.randint(0,127)
-        playqueue.add(r);
+        # random track chooser
+        # which mode are we in?
+        if (audiodir==bootdir1):
+            n=random.randint(0,5)
+            r=random.randint(0,64)
+            if (n==4):    # 20% chance
+                track=64+r
+            else:
+                track=r
+        else:
+            track=random.randint(0,128)
+        playqueue.add(track)
+        
     if (pin==21):
         playqueue.add(0+additional)
     if (pin==16):
@@ -230,9 +247,10 @@ def addqueue(button):
         playqueue.add(14+additional)
     if (pin==13):
         playqueue.add(15+additional)
-  
-# Configure all buttons
 
+#---------------------------------------------------------------
+        
+# Configure all buttons
 
 GPIO.setmode(GPIO.BCM)
 inputpins={21,20,16,12,7,8,25,24,22,10,5,11,9,26,19,13,6,4,17,27,22}
@@ -304,11 +322,10 @@ brandom.when_held=addqueue
 
 # and the run and clear buttons
 
-brun=Button(3)
+brun=Button(3, bounce_time=.5)
 bclear=Button(2)
 
 brun.when_pressed=stopRunCB
-brun.when_released=stopRunCB
 bclear.when_pressed=playqueue.clearall
 
 redPWM=GPIO.PWM(RED,100)
@@ -343,6 +360,11 @@ def suspendSoundProc():
 def resumeSoundProc():
         os.kill(soundproc.pid,signal.SIGCONT)
 
+#-----------------------------------------------------------------
+# main program
+
+blink=0
+
 # flash LEDs indicating boot up
 
 for x in range(10):
@@ -355,30 +377,43 @@ for x in range(10):
 statusLEDoff()
 runLEDoff()
 
-#--------------------
-# main loop
+# main loop...
 
 while True:
-    blink=False
-    time.sleep(.25)
+    time.sleep(.2)
 
     # orange light (play queue status)
 
     doQueueLight()
     # red light (running status)
-         
-    if (soundproc.poll() is None):
-        runLEDon()
-        soundprocStat=True
-        if (running):
-          if (blink):
-              blink=False
-              redPWM.ChangeDutyCycle(100)
-          else:
-              redPWM.ChangeDutyCycle(50)
-              blink=True
+
+    if (running==True):
+        if (soundproc.poll() is None):
+            runLEDon()
+            soundprocStat=True
+            if (running):
+              blink=blink+1
+              if (blink==0):
+                  redPWM.ChangeDutyCycle(100)
+              elif (blink==4):
+                  redPWM.ChangeDutyCycle(20)
+              if (blink>8):
+                  blink=0
+              else:
+                  blink=0
+            else:
+                runLEDoff()
+                soundprocStat=False
         else:
-            runLEDoff()
-            soundprocStat=False
+            print ("Next track\n")
+            for x in range(2):
+               runLEDoff()
+               time.sleep(.05)
+               runLEDon()
+               statusLEDon()
+               time.sleep(.05)
+            success=playqueue.playnext()
+            if (success==False):
+                running=False
 
     
