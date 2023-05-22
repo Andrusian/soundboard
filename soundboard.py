@@ -16,8 +16,10 @@ random.seed()
 ORANGE=23
 RED=18
 
-bootdir1="1"
-bootdir2="2"
+bootdir1="/home/dave/1"
+bootdir2="/home/dave/2"
+bootdir3="/home/dave/3"
+bootdir4="/home/dave/4"
 
 #===============================================
 # wiring diagram
@@ -57,7 +59,6 @@ bootdir2="2"
 #player="/usr/bin/omxplayer"       # note - omxplayer not suitable for use
 player="mpg321"                    # must install
 script="/bin/bash"
-volume_control="/usr/bin/amixer"
 
 # to shutdown from main menu
 # as regular user, need 'sudo chmod u+s /sbin/shutdown'
@@ -102,7 +103,7 @@ class Play:
        return len(self.queue)
 
     def add(self,num):
-        print ("Button: %d\n" % (num))
+        print ("Add: %d\n" % (num))
         return self.queue.append(num)
 
     def clearall(self):
@@ -112,19 +113,7 @@ class Play:
     def playnext(self):
         try:
             nextfile=self.queue.popleft()
-            playfile(nextfile)
-            if (len(self.queue)==1):
-                for x in range(2):   # alternate lights twice when one track left
-                    statusLEDon()
-                    runLEDoff()
-                    time.sleep(.15)
-                    statusLEDoff()
-                    runLEDon()
-                    time.sleep(.15)
-            statusLEDon()
-            runLEDon()
-            return True
-            
+            print ("Play next: %s\n" % (nextfile))
         except IndexError:
             for x in range(3):   # flash both lights 3 times
                 statusLEDoff()
@@ -139,29 +128,52 @@ class Play:
             running=False
             return False
 
+        playfile(nextfile)
+           
+        if (len(self.queue)==1):
+            for x in range(2):   # alternate lights twice when one track left
+                statusLEDon()
+                runLEDoff()
+                time.sleep(.15)
+                statusLEDoff()
+                runLEDon()
+                time.sleep(.15)
+        statusLEDon()
+        runLEDon()
+        return True
 
 playqueue=Play()
 
-soundproc=subprocess.Popen([volume_control,"cset","numid=1","94%"],stdout=devnull,shell=False)   # set up volume, 80% by default
+# set up volume
+# RPi has terrible audio output so we are using a separate 3W amp to boost
+# if set too high, you'll get noise on the output
+#
+# Note also that RPi volume control is non-linear.
+# 95% in amixer should yield max volume in in alsamixer
+#
+# The RPi output is also noisy due to being cheap. There is some discussion about this online
+# but the solution of doing raspi-update to install corrected firmware
+# makes no difference.
+ 
+soundproc=subprocess.Popen(["amixer","cset","numid=1","95%"],stdout=devnull,shell=False)  
 soundprocStat=False
 boost=False
 
 #---------------------------------------------------------------
-# stop/run button callback
+# stop/run button callbacks
 
-def stopRunCB(button):
+def RunCB(button):
     global running
 
-    if (running==True):
-       # print ("Stop!\n")
-       stopAll()
-       running=False
-       runLEDoff()
-    else:
-       # print ("Run!\n")
-       running=True
-       running=playqueue.playnext()
-        
+    # print ("Run!\n")
+    running=True
+    running=playqueue.playnext()
+
+def StopCB(button):
+    stopAll()
+    running=False
+    runLEDoff()
+       
 #---------------------------------------------------------------
 
 def doQueueLight():
@@ -180,10 +192,37 @@ def doQueueLight():
 def addqueue(button):
     pin=button.pin.number
     additional=0
+    global running
 
+    # switch mode if clear plus a bottom row pushed
+
+    if ((bclear.is_pressed) and (b0.is_pressed)):
+      audiodir==bootdir1
+      playqueue.clearall
+      print ("mode change 1\n")
+      return
+
+    if ((bclear.is_pressed) and (b1.is_pressed)):
+      audiodir==bootdir2   
+      playqueue.clearall
+      print ("mode change 2\n")
+      return
+
+    if ((bclear.is_pressed) and (b2.is_pressed)):
+      audiodir==bootdir3   
+      playqueue.clearall
+      print ("mode change 3\n")
+      return
+
+    if ((bclear.is_pressed) and (b3.is_pressed)):
+      audiodir==bootdir4   
+      playqueue.clearall
+      print ("mode change 4\n")
+      return
+    
     # flash orange LED 4 times fast
     
-    for x in range(4):
+    for x in range(2):
         statusLEDoff()
         time.sleep(.05)
         statusLEDon()
@@ -247,6 +286,18 @@ def addqueue(button):
         playqueue.add(14+additional)
     if (pin==13):
         playqueue.add(15+additional)
+
+    # we know there should be something in the playqueue
+    # but if the run button is pressed and something is
+    # queued, we should automatically start playing it
+    #
+    # If we are already running, we don't need to do anything
+        
+    if (brun.is_pressed==True):
+        if (running==False):
+            running=True
+            running=playqueue.playnext()
+
 
 #---------------------------------------------------------------
         
@@ -325,7 +376,8 @@ brandom.when_held=addqueue
 brun=Button(3, bounce_time=.5)
 bclear=Button(2)
 
-brun.when_pressed=stopRunCB
+brun.when_pressed=RunCB
+brun.when_released=StopCB
 bclear.when_pressed=playqueue.clearall
 
 redPWM=GPIO.PWM(RED,100)
@@ -333,11 +385,7 @@ redPWM.start(0)
 redPWM.ChangeDutyCycle(100)  # reset this whenever off
 # not that DutyCycle overrides on/off
 
-if (GPIO.input(4)):
-    audiodir=bootdir2
-else:
-    audiodir=bootdir1
-    
+audiodir=bootdir1  # default
     
 def runLEDon ():
     GPIO.output(RED,1)
@@ -396,7 +444,7 @@ while True:
               if (blink==0):
                   redPWM.ChangeDutyCycle(100)
               elif (blink==4):
-                  redPWM.ChangeDutyCycle(20)
+                  redPWM.ChangeDutyCycle(50)
               if (blink>8):
                   blink=0
               else:
